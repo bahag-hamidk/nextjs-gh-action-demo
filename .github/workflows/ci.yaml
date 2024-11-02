@@ -1,0 +1,112 @@
+name: Nextjs CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+        
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+      
+      - name: Verify build output
+        run: |
+          if [ -d "./out" ] && [ "$(ls -A ./out)" ]; then
+            echo "The ./out directory exists and is not empty."
+            echo "${ls}"
+          else
+            echo "The ./out directory does not exist or is empty."
+            exit 1  # Fail the job if the directory doesn't exist or is empty
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-build-${{ github.run_id }}
+          path: ./out
+      
+      # - name: Deploy to Github Pages
+      #   uses: peaceiris/actions-gh-pages@v3
+      #   with:
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     publish_dir: ./out
+    
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+    
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: nextjs-build-${{ github.run_id }}
+          path: ./out
+
+      - name: List contents of the out directory
+        run: ls -R
+
+      - name: Deploy to Github Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./out
+
+  echo:
+    needs: [build, deploy]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.x, 18.x, 20.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Echo 1
+        run: echo "Hello, World!"
+
+      - name: Echo 2
+        run: echo "THIS APP IS RUNNING ON URL, ${{ secrets.API_URL }}!"
+
+      - name: Echo 3
+        run: echo "THIS APP HAS A CI API_KEY, ${{ secrets.API_KEY }}!"
+      
+      - name: Echo 4
+        run: echo "THE REPOSITORY IS ${{ github.repository }}!"
